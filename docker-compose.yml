@@ -1,0 +1,91 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: shodh-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: shodh_user
+      POSTGRES_PASSWORD: shodh_password
+      POSTGRES_DB: shodh_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shodh_user -d shodh_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate-seed:
+    build: .
+    container_name: shodh-migrate-seed
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shodh_user:shodh_password@db:5432/shodh_db
+      SYNC_DATABASE_URL: postgresql://shodh_user:shodh_password@db:5432/shodh_db
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && python -m app.seed"
+
+  api-1:
+    build: .
+    container_name: shodh-api-1
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shodh_user:shodh_password@db:5432/shodh_db
+      INSTANCE_ID: api-instance-1
+      RUNNER_MODE: REAL_DOCKER
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate-seed:
+        condition: service_completed_successfully
+
+  api-2:
+    build: .
+    container_name: shodh-api-2
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shodh_user:shodh_password@db:5432/shodh_db
+      INSTANCE_ID: api-instance-2
+      RUNNER_MODE: REAL_DOCKER
+    ports:
+      - "8001:8000"
+    depends_on:
+      migrate-seed:
+        condition: service_completed_successfully
+
+  worker-1:
+    build: .
+    container_name: shodh-worker-1
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shodh_user:shodh_password@db:5432/shodh_db
+      WORKER_ID: worker-1
+      RUNNER_MODE: REAL_DOCKER
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      migrate-seed:
+        condition: service_completed_successfully
+
+  worker-2:
+    build: .
+    container_name: shodh-worker-2
+    restart: always
+    environment:
+      DATABASE_URL: postgresql+asyncpg://shodh_user:shodh_password@db:5432/shodh_db
+      WORKER_ID: worker-2
+      RUNNER_MODE: REAL_DOCKER
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      migrate-seed:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

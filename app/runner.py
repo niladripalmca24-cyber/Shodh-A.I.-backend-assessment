@@ -460,7 +460,17 @@ class DeterministicMockRunner(BaseRunner):
             elif "# TRIGGER: CE" in code:
                 verdict = "COMPILATION_ERROR"
             else:
-                verdict = "ACCEPTED"
+                # If no special mock trigger or forced verdict, execute via SubprocessSandboxRunner
+                sub_res = SubprocessSandboxRunner().run_submission(
+                    code=code,
+                    language=language,
+                    test_cases=test_cases,
+                    time_limit_ms=time_limit_ms,
+                    memory_limit_mb=memory_limit_mb,
+                    output_limit_bytes=output_limit_bytes
+                )
+                sub_res.execution_mode = "MOCK_DOUBLE"
+                return sub_res
 
         test_results = []
         for tc in test_cases:

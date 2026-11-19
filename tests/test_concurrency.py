@@ -68,6 +68,9 @@ async def test_idempotency_barrier_race_and_conflict(client: AsyncClient, db_ses
     assert conflict_res.status_code == 409
     assert conflict_res.json()["error"]["code"] == "IDEMPOTENCY_KEY_PAYLOAD_MISMATCH"
 
+    # Drain created attempt from queue
+    await claim_and_process_one(worker_id="test-drain-worker")
+
 
 @pytest.mark.asyncio
 async def test_competing_workers_no_duplicate_judging(client: AsyncClient):
@@ -94,11 +97,11 @@ async def test_competing_workers_no_duplicate_judging(client: AsyncClient):
     # Launch 2 competing workers concurrently
     async def worker_task(worker_name: str):
         processed_count = 0
-        for _ in range(5):
+        for _ in range(10):
             ok = await claim_and_process_one(worker_id=worker_name)
             if ok:
                 processed_count += 1
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.02)
         return processed_count
 
     results = await asyncio.gather(

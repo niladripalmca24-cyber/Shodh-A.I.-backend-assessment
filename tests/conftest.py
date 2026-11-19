@@ -41,7 +41,7 @@ async def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
-@async_fixture(scope="session", autouse=True)
+@async_fixture(scope="function", autouse=True)
 async def prepare_database():
     # Patch main session local so worker/seed use the test engine
     import app.database
@@ -52,8 +52,13 @@ async def prepare_database():
     app.worker.AsyncSessionLocal = TestAsyncSessionLocal
     app.seed.AsyncSessionLocal = TestAsyncSessionLocal
 
+    dialect_name = test_engine.dialect.name
     async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        if dialect_name == "postgresql":
+            from sqlalchemy import text
+            await conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+        else:
+            await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     # Run deterministic seed
@@ -62,7 +67,11 @@ async def prepare_database():
     yield
 
     async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        if dialect_name == "postgresql":
+            from sqlalchemy import text
+            await conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+        else:
+            await conn.run_sync(Base.metadata.drop_all)
 
     if os.path.exists("test_shodh.db"):
         try:

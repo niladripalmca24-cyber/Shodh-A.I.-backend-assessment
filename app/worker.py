@@ -69,6 +69,14 @@ async def claim_next_attempt(db: AsyncSession, worker_id: str) -> Optional[Judgi
         attempt.verdict = "INFRASTRUCTURE_ERROR"
         attempt.error_message = f"Exceeded maximum retries ({settings.MAX_JUDGE_RETRIES}) without completion"
         attempt.completed_at = now
+
+        # Also update parent submission status to prevent permanently stuck job
+        sub_res = await db.execute(select(Submission).where(Submission.id == attempt.submission_id))
+        sub = sub_res.scalar_one_or_none()
+        if sub and sub.status in ("QUEUED", "RUNNING"):
+            sub.status = "FAILED"
+            sub.verdict = "INFRASTRUCTURE_ERROR"
+
         await db.commit()
         log_structured(
             "attempt_max_retries_exceeded",

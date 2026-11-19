@@ -183,6 +183,16 @@ docker run --rm \
 ### One-Command Test Execution
 Run the full automated test suite covering all four stages:
 
+**Via Docker (Recommended - runs against PostgreSQL in isolated container):**
+```bash
+docker compose --profile test run --rm test
+```
+*Or against active running container:*
+```bash
+docker compose exec api-1 pytest -v
+```
+
+**Locally (in environment with dependencies installed):**
 ```bash
 pytest -v
 ```
@@ -210,6 +220,12 @@ pytest -v
 ### Workload Generator (`scripts/load_test.py`)
 Run the repeatable 40-client concurrent workload:
 
+**Via Docker:**
+```bash
+docker compose exec api-1 python scripts/load_test.py
+```
+
+**Locally:**
 ```bash
 python scripts/load_test.py
 ```

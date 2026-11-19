@@ -1,7 +1,12 @@
 import asyncio
 import os
 import pytest
-import pytest_asyncio
+try:
+    import pytest_asyncio
+    async_fixture = pytest_asyncio.fixture
+except ImportError:
+    import pytest as pytest_asyncio
+    async_fixture = pytest.fixture
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
@@ -36,7 +41,7 @@ async def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@async_fixture(scope="session", autouse=True)
 async def prepare_database():
     # Patch main session local so worker/seed use the test engine
     import app.database
@@ -65,13 +70,13 @@ async def prepare_database():
         except Exception:
             pass
 
-@pytest_asyncio.fixture
+@async_fixture
 async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
         yield ac
 
-@pytest_asyncio.fixture
+@async_fixture
 async def db_session():
     async with TestAsyncSessionLocal() as session:
         yield session

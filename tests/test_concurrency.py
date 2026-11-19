@@ -201,6 +201,29 @@ async def test_rejudge_preserves_monotonic_standings(client: AsyncClient, db_ses
     assert sub_data["authoritative_attempt_id"] == new_att["id"]
     assert sub_data["verdict"] == "ACCEPTED"
 
+    # Simulate a delayed/superseded attempt 1 finishing LATE
+    # Fetch attempt 1 from DB
+    att1_stmt = select(JudgingAttempt).where(
+        JudgingAttempt.submission_id == "sub-bob-001",
+        JudgingAttempt.attempt_number == 1
+    )
+    att1_res = await db_session.execute(att1_stmt)
+    attempt_1 = att1_res.scalar_one()
+
+    # Re-set attempt 1 to RUNNING with a mock lease to simulate delayed worker completion
+    attempt_1.status = "RUNNING"
+    attempt_1.lease_token = "delayed-stale-token-1"
+    await db_session.commit()
+
+    late_runner = DeterministicMockRunner(forced_verdict="WRONG_ANSWER")
+    await process_attempt(db_session, attempt_1, runner=late_runner)
+
+    # Invariant Verification: Authoritative attempt must REMAIN attempt 2 (ACCEPTED)
+    res_sub_after = await client.get(f"/contests/{CONTEST_A_ID}/submissions/sub-bob-001", headers=headers_bob)
+    sub_data_after = res_sub_after.json()
+    assert sub_data_after["authoritative_attempt_id"] == new_att["id"], "Superseded attempt 1 must NOT overwrite authoritative_attempt_id"
+    assert sub_data_after["verdict"] == "ACCEPTED", "Delayed older attempt must NOT corrupt authoritative verdict"
+
 
 @pytest.mark.asyncio
 async def test_rebuild_standings_equals_serving_path(client: AsyncClient, db_session: AsyncSession):

@@ -15,24 +15,23 @@ from app.main import app
 from app.seed import seed_database
 from app.config import settings
 
+from sqlalchemy.pool import NullPool
+
 # Use an isolated test database
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///test_shodh.db")
 
 connect_args = {}
-engine_kwargs = {"echo": False}
 if "sqlite" in TEST_DB_URL:
     connect_args["check_same_thread"] = False
     connect_args["timeout"] = 30
-    from sqlalchemy.pool import NullPool
-    engine_kwargs["poolclass"] = NullPool
 else:
     connect_args["statement_cache_size"] = 0
 
-engine_kwargs["connect_args"] = connect_args
-
 test_engine = create_async_engine(
     TEST_DB_URL,
-    **engine_kwargs
+    echo=False,
+    poolclass=NullPool,
+    connect_args=connect_args
 )
 
 TestAsyncSessionLocal = async_sessionmaker(
@@ -47,6 +46,9 @@ async def override_get_db():
     async with TestAsyncSessionLocal() as session:
         try:
             yield session
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
 
@@ -94,6 +96,8 @@ async def prepare_database():
 
     yield
 
+    await test_engine.dispose()
+
 @async_fixture
 async def client():
     transport = ASGITransport(app=app)
@@ -103,4 +107,8 @@ async def client():
 @async_fixture
 async def db_session():
     async with TestAsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()

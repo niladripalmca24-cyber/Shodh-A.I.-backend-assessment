@@ -8,6 +8,8 @@ Base = declarative_base()
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     connect_args["check_same_thread"] = False
+else:
+    connect_args["statement_cache_size"] = 0
 
 try:
     async_engine = create_async_engine(

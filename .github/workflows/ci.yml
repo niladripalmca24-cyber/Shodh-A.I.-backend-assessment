@@ -60,7 +60,7 @@ jobs:
           TEST_DATABASE_URL: postgresql+asyncpg://shodh_user:shodh_password@localhost:5432/shodh_db
           RUNNER_MODE: MOCK
         run: |
-          pytest -v
+          pytest -v -rA --tb=short
 
       - name: Execute Repeatable Workload Benchmark
         env:

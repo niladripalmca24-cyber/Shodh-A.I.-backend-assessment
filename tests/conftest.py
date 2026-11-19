@@ -18,10 +18,16 @@ from app.config import settings
 # Use an isolated test database
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///test_shodh.db")
 
+connect_args = {}
+if "sqlite" in TEST_DB_URL:
+    connect_args["check_same_thread"] = False
+else:
+    connect_args["statement_cache_size"] = 0
+
 test_engine = create_async_engine(
     TEST_DB_URL,
     echo=False,
-    connect_args={"check_same_thread": False} if "sqlite" in TEST_DB_URL else {}
+    connect_args=connect_args
 )
 
 TestAsyncSessionLocal = async_sessionmaker(
@@ -56,22 +62,32 @@ async def prepare_database():
     async with test_engine.begin() as conn:
         if dialect_name == "postgresql":
             from sqlalchemy import text
-            await conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+            await conn.execute(text("""
+                TRUNCATE TABLE 
+                    test_case_results,
+                    judging_attempts,
+                    submissions,
+                    idempotency_records,
+                    test_cases,
+                    test_suite_versions,
+                    problem_versions,
+                    contest_problems,
+                    problems,
+                    contest_participants,
+                    contests,
+                    org_memberships,
+                    users,
+                    organizations
+                CASCADE;
+            """))
         else:
             await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(Base.metadata.create_all)
 
     # Run deterministic seed
     await seed_database()
 
     yield
-
-    async with test_engine.begin() as conn:
-        if dialect_name == "postgresql":
-            from sqlalchemy import text
-            await conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
-        else:
-            await conn.run_sync(Base.metadata.drop_all)
 
     if os.path.exists("test_shodh.db"):
         try:

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shodh-a-code-backend"
+version = "1.0.0"
+description = "Distributed Asynchronous Coding Contest Platform Backend"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Niladri Pal", email = "palniladri120@gmail.com" }
+]
+license = { text = "MIT" }
+keywords = ["fastapi", "postgresql", "docker-sandbox", "icpc-scoring", "concurrency", "distributed-systems"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Framework :: FastAPI",
+    "Topic :: Software Development :: Build Tools",
+    "Operating System :: OS Independent"
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

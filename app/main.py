@@ -12,6 +12,7 @@ from fastapi import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import select, func, and_, desc
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -461,9 +462,38 @@ async def create_submission(
         )
         db.add(idem_rec)
 
-    await db.commit()
-    await db.refresh(submission)
-    return SubmissionResponse.model_validate(submission)
+    try:
+        await db.commit()
+        await db.refresh(submission)
+        return SubmissionResponse.model_validate(submission)
+    except IntegrityError:
+        await db.rollback()
+        # Concurrent request with same idempotency key committed first
+        if idempotency_key:
+            idem_stmt = select(IdempotencyRecord).where(
+                IdempotencyRecord.contest_id == contest_id,
+                IdempotencyRecord.user_id == auth.user_id,
+                IdempotencyRecord.idempotency_key == idempotency_key
+            )
+            idem_res = await db.execute(idem_stmt)
+            existing_record = idem_res.scalar_one_or_none()
+            if existing_record:
+                if existing_record.payload_sha256 == payload_hash:
+                    sub_res = await db.execute(
+                        select(Submission).where(Submission.id == existing_record.submission_id)
+                    )
+                    existing_sub = sub_res.scalar_one_or_none()
+                    if existing_sub:
+                        return SubmissionResponse.model_validate(existing_sub)
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "code": "IDEMPOTENCY_KEY_PAYLOAD_MISMATCH",
+                            "message": "Idempotency key reused with conflicting submission payload"
+                        }
+                    )
+        raise
 
 
 @app.get("/contests/{contest_id}/submissions", response_model=PaginatedResponse[SubmissionResponse], tags=["Submissions"])

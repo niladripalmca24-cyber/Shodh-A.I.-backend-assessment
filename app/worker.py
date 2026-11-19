@@ -243,7 +243,7 @@ async def process_attempt(
     sub_curr_res = await db.execute(sub_curr_stmt)
     fresh_sub = sub_curr_res.scalar_one_or_none()
 
-    if fresh_sub and runner_result.verdict != "INFRASTRUCTURE_ERROR":
+    if fresh_sub:
         # Check current authoritative attempt number if exists
         current_auth_num = 0
         if fresh_sub.authoritative_attempt_id:
@@ -258,7 +258,7 @@ async def process_attempt(
         if attempt.attempt_number >= current_auth_num:
             fresh_sub.authoritative_attempt_id = attempt_id
             fresh_sub.verdict = runner_result.verdict
-            fresh_sub.status = "COMPLETED"
+            fresh_sub.status = "COMPLETED" if runner_result.verdict != "INFRASTRUCTURE_ERROR" else "FAILED"
 
     await db.commit()
 

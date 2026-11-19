@@ -19,15 +19,20 @@ from app.config import settings
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///test_shodh.db")
 
 connect_args = {}
+engine_kwargs = {"echo": False}
 if "sqlite" in TEST_DB_URL:
     connect_args["check_same_thread"] = False
+    connect_args["timeout"] = 30
+    from sqlalchemy.pool import NullPool
+    engine_kwargs["poolclass"] = NullPool
 else:
     connect_args["statement_cache_size"] = 0
 
+engine_kwargs["connect_args"] = connect_args
+
 test_engine = create_async_engine(
     TEST_DB_URL,
-    echo=False,
-    connect_args=connect_args
+    **engine_kwargs
 )
 
 TestAsyncSessionLocal = async_sessionmaker(
@@ -88,12 +93,6 @@ async def prepare_database():
     await seed_database()
 
     yield
-
-    if os.path.exists("test_shodh.db"):
-        try:
-            os.remove("test_shodh.db")
-        except Exception:
-            pass
 
 @async_fixture
 async def client():

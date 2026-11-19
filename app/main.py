@@ -196,9 +196,18 @@ async def get_contest(
             created_at=p.created_at
         ))
 
-    detail = ContestDetailResponse.model_validate(contest)
-    detail.problems = problems_list
-    return detail
+    return ContestDetailResponse(
+        id=contest.id,
+        org_id=contest.org_id,
+        title=contest.title,
+        slug=contest.slug,
+        starts_at=contest.starts_at,
+        ends_at=contest.ends_at,
+        freeze_at=contest.freeze_at,
+        is_published=contest.is_published,
+        created_at=contest.created_at,
+        problems=problems_list
+    )
 
 
 @app.post("/contests/{contest_id}/join", response_model=ContestParticipantResponse, tags=["Contests"])
@@ -642,7 +651,20 @@ async def rejudge_submission(
     await db.commit()
     await db.refresh(new_attempt)
 
-    return JudgingAttemptResponse.model_validate(new_attempt)
+    return JudgingAttemptResponse(
+        id=new_attempt.id,
+        attempt_number=new_attempt.attempt_number,
+        problem_version_id=new_attempt.problem_version_id,
+        test_suite_version_id=new_attempt.test_suite_version_id,
+        status=new_attempt.status,
+        verdict=new_attempt.verdict,
+        execution_time_ms=new_attempt.execution_time_ms,
+        memory_used_kb=new_attempt.memory_used_kb,
+        retry_count=new_attempt.retry_count,
+        created_at=new_attempt.created_at,
+        completed_at=new_attempt.completed_at,
+        test_case_results=[]
+    )
 
 
 # -------------------------------------------------------------
